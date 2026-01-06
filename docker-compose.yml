@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  aria-api:
+    build: .
+    container_name: aria-api
+    ports:
+      # The Aria scale connects to port 80 on www.fitbit.com
+      - "80:80"
+      # Optional: expose API on different port for management
+      - "8080:80"
+    volumes:
+      # Persist database
+      - aria-data:/app/data
+      # Optional: mount for development
+      # - ./app:/app/app:ro
+    environment:
+      - DATABASE_URL=sqlite:///./data/aria.db
+      - WEIGHT_UNIT=kg  # Options: kg, lbs, stones
+      - LOG_LEVEL=INFO
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  aria-data:
+    driver: local
