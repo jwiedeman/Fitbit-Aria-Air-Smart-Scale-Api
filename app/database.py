@@ -8,7 +8,7 @@ import os
 import time
 import logging
 from datetime import datetime, timezone
-from sqlalchemy import create_engine, Column, Integer, Float, String, DateTime, Boolean, LargeBinary, text
+from sqlalchemy import create_engine, Column, Integer, BigInteger, Float, String, DateTime, Boolean, LargeBinary, text
 from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy.exc import OperationalError
 
@@ -44,10 +44,12 @@ class Scale(Base):
     serial_number = Column(String(12), unique=True, index=True)  # MAC as hex
     ssid = Column(String(64), nullable=True)  # WiFi network name
     firmware_version = Column(Integer, nullable=True)
+    protocol_version = Column(Integer, nullable=True)  # Protocol version (usually 3)
     battery_percent = Column(Integer, nullable=True)
     last_seen = Column(DateTime(timezone=True), default=utcnow)
     registered_at = Column(DateTime(timezone=True), default=utcnow)
-    auth_token = Column(String(64), nullable=True)
+    auth_token = Column(String(64), nullable=True)  # Registration token
+    auth_code = Column(String(32), nullable=True)  # 16-byte auth code as hex
     is_active = Column(Boolean, default=True)
 
     def __repr__(self):
@@ -60,8 +62,9 @@ class Measurement(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     scale_mac = Column(String(17), index=True)  # Scale MAC address
-    measurement_id = Column(Integer)  # ID from scale
+    measurement_id = Column(BigInteger)  # ID from scale (can be large)
     timestamp = Column(DateTime(timezone=True), index=True)  # When measurement was taken
+    timestamp_raw = Column(BigInteger)  # Raw Unix timestamp from scale
     received_at = Column(DateTime(timezone=True), default=utcnow)  # When we received it
 
     # Weight data
@@ -69,15 +72,15 @@ class Measurement(Base):
     weight_kg = Column(Float)
     weight_lbs = Column(Float)
 
-    # Body composition
-    impedance = Column(Integer, nullable=True)
-    body_fat_percent = Column(Float, nullable=True)
-    fat_percent_raw_1 = Column(Integer, nullable=True)
-    fat_percent_raw_2 = Column(Integer, nullable=True)
-    covariance = Column(Integer, nullable=True)
+    # Body composition (bio-impedance analysis)
+    impedance = Column(Integer, nullable=True)  # Bio-electrical impedance in ohms
+    body_fat_percent = Column(Float, nullable=True)  # Calculated body fat %
+    fat_percent_raw_1 = Column(Integer, nullable=True)  # First raw reading (x10)
+    fat_percent_raw_2 = Column(Integer, nullable=True)  # Second raw reading (x10)
+    covariance = Column(Integer, nullable=True)  # Measurement covariance/quality
 
     # User assignment
-    user_id = Column(Integer, default=0)  # 0 = guest
+    user_id = Column(Integer, default=0, index=True)  # 0 = guest
     is_guest = Column(Boolean, default=True)
 
     def __repr__(self):
@@ -107,12 +110,17 @@ class RawUpload(Base):
     __tablename__ = "raw_uploads"
 
     id = Column(Integer, primary_key=True, index=True)
-    received_at = Column(DateTime(timezone=True), default=utcnow)
-    scale_mac = Column(String(17), nullable=True)
+    received_at = Column(DateTime(timezone=True), default=utcnow, index=True)
+    scale_mac = Column(String(17), nullable=True, index=True)
+    protocol_version = Column(Integer, nullable=True)
+    firmware_version = Column(Integer, nullable=True)
+    battery_percent = Column(Integer, nullable=True)
+    scale_timestamp = Column(BigInteger, nullable=True)  # Scale's internal clock
+    measurement_count = Column(Integer, nullable=True)
     request_data = Column(LargeBinary)  # Raw binary request
     response_data = Column(LargeBinary, nullable=True)  # Raw binary response
     parsed_ok = Column(Boolean, default=False)
-    error_message = Column(String(256), nullable=True)
+    error_message = Column(String(512), nullable=True)
 
 
 def wait_for_db(max_retries: int = 30, retry_interval: int = 2):
