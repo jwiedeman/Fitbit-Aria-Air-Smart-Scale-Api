@@ -1,0 +1,48 @@
+# Fitbit Aria Scale Self-Hosted API
+#
+# SECURITY NOTES:
+# - The management API (/api/*) is UNAUTHENTICATED by default
+# - Only deploy on a trusted network, or behind a reverse proxy with auth
+# - Change the default PostgreSQL password before production use
+# - PostgreSQL is exposed on port 5432 - restrict access as needed
+
+services:
+  aria-api:
+    build: .
+    container_name: aria-api
+    ports:
+      # The Aria scale connects to port 80 on www.fitbit.com
+      - "80:80"
+    environment:
+      - DATABASE_URL=postgresql://aria:aria@postgres:5432/aria
+      - WEIGHT_UNIT=kg  # Options: kg, lbs, stones
+      - LOG_LEVEL=INFO
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: aria-postgres
+    environment:
+      # SECURITY: Change this password in production!
+      - POSTGRES_USER=aria
+      - POSTGRES_PASSWORD=aria
+      - POSTGRES_DB=aria
+    volumes:
+      - aria-pgdata:/var/lib/postgresql/data
+    ports:
+      # Expose PostgreSQL for external dashboard connections
+      # Remove or restrict this in production if not needed externally
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aria -d aria"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  aria-pgdata:
+    driver: local
