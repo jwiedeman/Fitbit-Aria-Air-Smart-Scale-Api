@@ -46,13 +46,147 @@ docker-compose up -d
 
 ### 2️⃣ Configure DNS Redirect
 
-Point `www.fitbit.com` and `api.fitbit.com` to your Docker host:
+Point `www.fitbit.com` and `api.fitbit.com` to your Docker host IP (e.g., `192.168.1.100`).
 
-| Method | How |
-|--------|-----|
-| **Pi-hole** | Local DNS records → `192.168.1.x` |
-| **Router** | Custom DNS override |
-| **IoT VLAN** | Dedicated network with custom DNS |
+<details>
+<summary><b>🔥 pfSense (Recommended)</b></summary>
+
+#### Option A: DNS Resolver Host Overrides
+
+1. Go to **Services → DNS Resolver**
+2. Scroll to **Host Overrides** and click **+ Add**
+3. Add these entries:
+
+| Host | Domain | IP Address |
+|------|--------|------------|
+| `www` | `fitbit.com` | `192.168.1.100` |
+| `api` | `fitbit.com` | `192.168.1.100` |
+
+4. Click **Save** then **Apply Changes**
+
+#### Option B: DNS Forwarder (if using that instead)
+
+1. Go to **Services → DNS Forwarder**
+2. Scroll to **Host Overrides**
+3. Add the same entries as above
+
+#### Verify it works:
+```bash
+# From a device on your network
+nslookup www.fitbit.com
+# Should return 192.168.1.100
+```
+</details>
+
+<details>
+<summary><b>🍓 Pi-hole</b></summary>
+
+1. Go to **Local DNS → DNS Records**
+2. Add these entries:
+
+```
+www.fitbit.com    192.168.1.100
+api.fitbit.com    192.168.1.100
+```
+
+3. Click **Add** for each
+
+Or via command line:
+```bash
+echo "192.168.1.100 www.fitbit.com" | sudo tee -a /etc/pihole/custom.list
+echo "192.168.1.100 api.fitbit.com" | sudo tee -a /etc/pihole/custom.list
+pihole restartdns
+```
+</details>
+
+<details>
+<summary><b>🔵 OPNsense</b></summary>
+
+1. Go to **Services → Unbound DNS → Overrides**
+2. Click **+ Add** under Host Overrides
+3. Add:
+   - **Host:** `www` | **Domain:** `fitbit.com` | **IP:** `192.168.1.100`
+   - **Host:** `api` | **Domain:** `fitbit.com` | **IP:** `192.168.1.100`
+4. Click **Save** then **Apply**
+</details>
+
+<details>
+<summary><b>🟢 OpenWrt / LuCI</b></summary>
+
+1. Go to **Network → DHCP and DNS**
+2. Under **Addresses**, add:
+
+```
+/www.fitbit.com/192.168.1.100
+/api.fitbit.com/192.168.1.100
+```
+
+Or via SSH:
+```bash
+uci add_list dhcp.@dnsmasq[0].address='/www.fitbit.com/192.168.1.100'
+uci add_list dhcp.@dnsmasq[0].address='/api.fitbit.com/192.168.1.100'
+uci commit dhcp
+/etc/init.d/dnsmasq restart
+```
+</details>
+
+<details>
+<summary><b>🏠 UniFi / UniFi Dream Machine</b></summary>
+
+UniFi doesn't have built-in DNS overrides. Options:
+
+1. **Use Pi-hole** as your DNS server and configure overrides there
+2. **Run your own DNS** (like dnsmasq) on the network
+3. **Static route + NAT** (advanced):
+   - Create a port forward rule for traffic to Fitbit IPs → your Docker host
+
+Easiest: Deploy Pi-hole and set it as your network's DNS server in UniFi.
+</details>
+
+<details>
+<summary><b>🔷 ASUS Routers (Merlin firmware)</b></summary>
+
+1. SSH into router or use **Tools → Run Cmd**
+2. Edit dnsmasq config:
+
+```bash
+echo "address=/www.fitbit.com/192.168.1.100" >> /jffs/configs/dnsmasq.conf.add
+echo "address=/api.fitbit.com/192.168.1.100" >> /jffs/configs/dnsmasq.conf.add
+service restart_dnsmasq
+```
+
+Stock ASUS firmware: Use the **LAN → DNS** settings if available, or flash Merlin.
+</details>
+
+<details>
+<summary><b>🟡 TP-Link / Netgear / Linksys (Consumer routers)</b></summary>
+
+Most consumer routers don't support DNS overrides. Your options:
+
+1. **Use Pi-hole** — Set up a Raspberry Pi with Pi-hole, point router's DHCP to use it as DNS
+2. **Change scale's DNS manually** — Not possible on Aria (uses DHCP)
+3. **Create IoT VLAN** — Separate network with custom DNS server
+
+**Recommended:** Get a Raspberry Pi Zero W (~$15), install Pi-hole, done.
+</details>
+
+<details>
+<summary><b>🖥️ Local testing (hosts file)</b></summary>
+
+For testing on a single machine (won't work for the scale itself):
+
+**Linux/Mac:** `/etc/hosts`
+```
+192.168.1.100  www.fitbit.com
+192.168.1.100  api.fitbit.com
+```
+
+**Windows:** `C:\Windows\System32\drivers\etc\hosts`
+```
+192.168.1.100  www.fitbit.com
+192.168.1.100  api.fitbit.com
+```
+</details>
 
 ### 3️⃣ Verify & Weigh Yourself
 
