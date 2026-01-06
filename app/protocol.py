@@ -6,6 +6,7 @@ Based on protocol documentation from:
 - https://github.com/ads04r/aria-spoof
 """
 
+import logging
 import struct
 import time
 from dataclasses import dataclass
@@ -13,6 +14,8 @@ from enum import IntEnum
 from typing import Optional
 
 from .crc import crc16_xmodem, verify_crc, append_crc
+
+logger = logging.getLogger(__name__)
 
 
 class WeightUnit(IntEnum):
@@ -121,8 +124,11 @@ def parse_upload_request(data: bytes) -> UploadRequest:
 
     # Verify CRC (last 2 bytes)
     if not verify_crc(data):
-        # Try without CRC verification for debugging
-        pass  # Some scales may have different CRC behavior
+        # Log warning but continue - some scales may have different CRC behavior
+        logger.warning(
+            f"CRC verification failed for upload data ({len(data)} bytes). "
+            "Proceeding anyway as some firmware versions may use different CRC."
+        )
 
     # Parse header (30 bytes)
     header_fmt = '<LL6s16s'

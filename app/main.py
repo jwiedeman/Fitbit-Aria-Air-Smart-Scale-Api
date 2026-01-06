@@ -11,7 +11,7 @@ Usage:
 
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import FastAPI, Request, Depends, Query, Response
@@ -94,7 +94,7 @@ async def scale_register(
         # Update existing scale
         scale.ssid = ssid
         scale.auth_token = token
-        scale.last_seen = datetime.utcnow()
+        scale.last_seen = datetime.now(timezone.utc)
         logger.info(f"Updated existing scale: {mac_address}")
     else:
         # Create new scale
@@ -154,7 +154,7 @@ async def scale_upload(
         if scale:
             scale.firmware_version = upload.firmware_version
             scale.battery_percent = upload.battery_percent
-            scale.last_seen = datetime.utcnow()
+            scale.last_seen = datetime.now(timezone.utc)
         else:
             # Auto-register unknown scale
             scale = Scale(
